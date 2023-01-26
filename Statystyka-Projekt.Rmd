@@ -1,0 +1,423 @@
+---
+title: "Statystyka - Projekt"
+author: "Mateusz Marczyk & Karol Sewiło"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, include=FALSE}
+library(GA)
+library(smoof)
+library(vioplot)
+library(knitr)
+library(kableExtra)
+set.seed(7)
+```
+## Wstęp
+#### <span style="font-size: 20px">Celem projektu jest porównanie działania dwóch algorytmów minimalizacji stochastycznej. Do porównania wybraliśmy **algorytm poszukiwania przypadkowego (PRS)** oraz **algorytm genetyczny** (GA).</span>
+
+## Zmienne globalne
+```{r}
+budget <- 1000
+cost <- 100
+alfa <- 0.05
+```
+
+```{r, include=FALSE}
+Algorytm <- c("średnia","mediana","odchylenie standardowe","wariancja")
+```
+
+## Implementacje wybranych algorytmów
+## [Algorytm Pure Random Search (PRS)](https://en.wikipedia.org/wiki/Random_search#Algorithm)
+```{r}
+PRS <- function(lower_bound, upper_bound, f,n) {
+  if(length(lower_bound) !=  length(upper_bound)) stop("Bounds must be equal dimensions")
+  
+  p <- integer(length(lower_bound))
+  fmin <- Inf
+  
+  for (x in 1:n) {
+    for(i in seq_along(p)) {
+      p[i] <- runif(1, lower_bound[i], upper_bound[i])
+    }
+    fmin <- min(fmin, f(p))
+  }
+  return(fmin)
+}
+```
+## [Algorytm Genetyczny (GA)](https://pl.wikipedia.org/wiki/Algorytm_genetyczny)
+```{r}
+GA <- function(f, n){
+result <- ga(
+  type = "real-valued", 
+  fitness = function(x) (-1)*f(x), 
+  lower = getLowerBoxConstraints(f), 
+  upper = getUpperBoxConstraints(f), 
+  maxiter = 40,
+  popSize = 25)
+
+return(-result@fitnessValue)
+}
+```
+
+## Funckja obliczania przedziału ufności
+```{r}
+CONF_INTRV <- function(vector, alfa)
+  return(unname(c(mean(vector)-quantile(vector, 1-(alfa/2))*sd(vector)/sqrt(length(vector)), mean(vector)+quantile(vector, 1-(alfa/2))*sd(vector)/sqrt(length(vector)))))
+```
+
+## Wybrane funkcje
+<span style="font-size: 20px">Do testów wybraliśmy funkcję **Akcley'a** oraz **Rastrigin'a**. Obie są skalarnem wielomodalne oraz akceptują dane w różnych wymiarach.</span>
+
+## Opracowanie danych
+
+<span style="font-size: 20px">Na początu analizować będziemy wyniki obu algorytmów dla funkcji Akcley'a w odpowiednio: 2, 10 oraz 20 wymiarach. Następnie przeprowdzimy analogiczną analizę dla funkcji Rastrigin'a.</span> 
+
+## Hipoteza zerowa
+
+<span style="font-size: 20px">- Algorytmy nie różnią się efektywnością szukania minimum funkcji.</span>
+
+## Hipotezy alternatywne
+
+<span style="font-size: 20px">1. Algorytm PRS jest efektywniejszy w szukaniu minimum funkcji.</span>
+
+<span style="font-size: 20px">2. Algorytm genetyczny jest efektywniejszy w szukaniu minimum funkcji.</span>
+
+# [Funkcja Ackley'a](https://www.sfu.ca/~ssurjano/ackley.html)
+<br/>
+
+#### Wzór funkcji: 
+$f\left( \textbf{x} \right)=-a \cdot \exp\left(-b\sqrt{\frac{1}{d}\sum_{i=1}^{d}x_{i}^{2}})  \right)-\exp\left( \frac{1}{d}\sum_{i=1}^{d}\cos\left( cx_{i} \right) \right) + a + \exp\left( 1 \right)$
+
+<br/>
+
+#### Minimum globalne:
+$f \left( \textbf{x}^{*} \right)=0,\ \ \text{at }  \textbf{x}^{*}=\left( 0,..,0 \right)$
+
+<br/>
+
+#### Zalecana dziedzina poszukiwań:
+$x_{i} \in \left[ -32.768,\ \ 32.768  \right], \ \ \forall_{1\le i\le d}, \ \text{gdzie } d \text{ to wymiar przestrzeni}$
+
+<br/>
+
+#### Domyślne stałe:
+$a=20, \ \ b=0.2, \ \ c=2\pi$
+
+
+
+
+
+```{r, out.width="100%", echo=FALSE}
+knitr::include_graphics("C:/Studia/Stata/Projekt/funkcje/ackley.png")
+```
+
+
+## 2 wymiary
+```{r, out.width="50%", fig.show="hold"}
+  ackley <- makeAckleyFunction(2)
+  
+  a_prs <- replicate(n = cost, 
+                 PRS(getLowerBoxConstraints(ackley), 
+                     getUpperBoxConstraints(ackley), 
+                     ackley, 
+                     budget))
+  a_ga <- replicate(n = cost, GA(ackley, budget))
+  hist(a_prs, main="histogram PRS", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  hist(a_ga, main="histogram GA", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  vioplot(a_prs, main="wykres skrzypcowy PRS", ylab = "wartości", col = "#BADDFF")
+  vioplot(a_ga, main="wykres skrzypcowy GA", ylab = "wartości", col = "#BADDFF")
+  
+  
+```
+```{r, echo=FALSE}
+  Prs <- c(mean(a_prs), median(a_prs), sd(a_prs), var(a_prs))
+  Ga <- c(mean(a_ga), median(a_ga), sd(a_ga), var(a_ga))
+  table <- data.frame(Algorytm, Prs, Ga)
+  as.data.frame(t(table)) %>% kable(align="lcccc", col.names = NULL) %>% kable_styling()
+```
+
+## Podsumowanie
+<span style="font-size: 20px">Obliczamy przedziały ufności: </span>
+
+##### **PRS**
+
+```{r}
+conf_interval <- CONF_INTRV(a_prs, alfa)
+conf_interval
+```
+
+##### **GA**
+
+```{r}
+conf_interval <- CONF_INTRV(a_ga, alfa)
+conf_interval
+```
+
+<span style="font-size: 20px">W przypadku porównywania 2 wymiarów dla funkcji Ackley'a sprawdza się hipoteza alternatywna 2.
+Dla algorytmu PRS średnia jest bardzo zbliżona do mediany, a odchylenie standardowe jest niewielkie. Natomiast dla algorytmu genetycznego średnia jest niemal trzykrotnie większa od mediany, a odchylenie standardowe jest znaczące.</span>
+
+## 10 wymiarów
+```{r, out.width="50%", fig.show="hold"}
+  ackley <- makeAckleyFunction(10)
+  
+  a_prs <- replicate(n = cost, 
+                 PRS(getLowerBoxConstraints(ackley), 
+                     getUpperBoxConstraints(ackley), 
+                     ackley, 
+                     budget))
+  a_ga <- replicate(n = cost, GA(ackley, budget))
+  hist(a_prs, main="histogram PRS", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  hist(a_ga, main="histogram GA", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  vioplot(a_prs, main="wykres skrzypcowy PRS", ylab = "wartości", col = "#BADDFF")
+  vioplot(a_ga, main="wykres skrzypcowy GA", ylab = "wartości", col = "#BADDFF")
+```
+```{r, echo=FALSE}
+  Prs <- c(mean(a_prs), median(a_prs), sd(a_prs), var(a_prs))
+  Ga <- c(mean(a_ga), median(a_ga), sd(a_ga), var(a_ga))
+  table <- data.frame(Algorytm, Prs, Ga)
+  as.data.frame(t(table)) %>% kable(align="lcccc", col.names = NULL) %>% kable_styling()
+```
+
+## Podsumowanie
+<span style="font-size: 20px">Obliczamy przedziały ufności: </span>
+
+##### **PRS**
+
+```{r}
+conf_interval <- CONF_INTRV(a_prs, alfa)
+conf_interval
+```
+
+##### **GA**
+
+```{r}
+conf_interval <- CONF_INTRV(a_ga, alfa)
+conf_interval
+```
+
+<span style="font-size: 20px">W przypadku porównywania 10 wymiarów dla funkcji Ackley'a sprawdza się hipoteza alternatywna 2.
+Dla algorytmu PRS średnia jest bardzo zbliżona do mediany, a odchylenie standardowe jest niewielkie. Dla algorytmu genetycznego średnia jest podobna do mediany, a odchylenie standardowe nie jest znaczące.</span>
+
+## 20 wymiarów
+```{r, out.width="50%", fig.show="hold"}
+  ackley <- makeAckleyFunction(20)
+  
+  a_prs <- replicate(n = cost, 
+                 PRS(getLowerBoxConstraints(ackley), 
+                     getUpperBoxConstraints(ackley), 
+                     ackley, 
+                     budget))
+  a_ga <- replicate(n = cost, GA(ackley, budget))
+  hist(a_prs, main="histogram PRS", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  hist(a_ga, main="histogram GA", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  vioplot(a_prs, main="wykres skrzypcowy PRS", ylab = "wartości", col = "#BADDFF")
+  vioplot(a_ga, main="wykres skrzypcowy GA", ylab = "wartości", col = "#BADDFF")
+```
+```{r, echo=FALSE}
+  Prs <- c(mean(a_prs), median(a_prs), sd(a_prs), var(a_prs))
+  Ga <- c(mean(a_ga), median(a_ga), sd(a_ga), var(a_ga))
+  table <- data.frame(Algorytm, Prs, Ga)
+  as.data.frame(t(table)) %>% kable(align="lcccc", col.names = NULL) %>% kable_styling()
+```
+
+## Podsumowanie
+<span style="font-size: 20px">Obliczamy przedziały ufności: </span>
+
+##### **PRS**
+
+```{r}
+conf_interval <- CONF_INTRV(a_prs, alfa)
+conf_interval
+```
+
+##### **GA**
+
+```{r}
+conf_interval <- CONF_INTRV(a_ga, alfa)
+conf_interval
+```
+
+<span style="font-size: 20px">W przypadku porównywania 20 wymiarów dla funkcji Ackley'a sprawdza się hipoteza alternatywna 2.
+Dla algorytmu PRS średnia jest prawie identyczna jak mediana, a odchylenie standardowe jest bardze małe. Dla algorytmu genetycznego średnia jest bardzo zbliżona do mediany, a odchylenie standardowe jest stosunkowo niewielkie.</span>
+
+# [Funkcja Rastrigin'a](https://www.sfu.ca/~ssurjano/rastr.html)
+
+<br/>
+
+#### Wzór funkcji: 
+$f\left( \textbf{x} \right)=10d + \sum_{i=1}^{d}\left( x^{2}_{i} -10\cos(2\pi x_{i})\right)$
+
+<br/>
+
+#### Minimum globalne:
+$f \left( \textbf{x}^{*} \right)=0,\ \ \text{at }  \textbf{x}^{*}=\left( 0,..,0 \right)$
+
+<br/>
+
+#### Zalecana dziedzina poszukiwań:
+$x_{i} \in \left[ -5.12,\ \ 5.12  \right], \ \ \forall_{1\le i\le d}, \ \text{gdzie } d \text{ to wymiar przestrzeni}$
+
+
+```{r, out.width="100%", echo=FALSE}
+knitr::include_graphics("C:/Studia/Stata/Projekt/funkcje/rastr.png")
+```
+
+
+## 2 wymiary
+```{r, out.width="50%", fig.show="hold"}
+  rastrigin <- makeRastriginFunction(2)
+  
+  r_prs <- replicate(n = cost, 
+                 PRS(getLowerBoxConstraints(rastrigin), 
+                     getUpperBoxConstraints(rastrigin), 
+                     rastrigin, 
+                     budget))
+  r_ga <- replicate(n = cost, GA(rastrigin, budget))
+  hist(r_prs, main="histogram PRS", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  hist(r_ga, main="histogram GA", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  vioplot(r_prs, main="wykres skrzypcowy PRS", ylab = "wartości", col = "#BADDFF")
+  vioplot(r_ga, main="wykres skrzypcowy GA", ylab = "wartości", col = "#BADDFF")
+```
+```{r, echo=FALSE}
+  Prs <- c(mean(r_prs), median(r_prs), sd(r_prs), var(r_prs))
+  Ga <- c(mean(r_ga), median(r_ga), sd(r_ga), var(r_ga))
+  table <- data.frame(Algorytm, Prs, Ga)
+  as.data.frame(t(table)) %>% kable(align="lcccc", col.names = NULL) %>% kable_styling()
+```
+
+## Podsumowanie
+<span style="font-size: 20px">Obliczamy przedziały ufności: </span>
+
+##### **PRS**
+
+```{r}
+conf_interval <- CONF_INTRV(a_prs, alfa)
+conf_interval
+```
+
+##### **GA**
+
+```{r}
+conf_interval <- CONF_INTRV(a_ga, alfa)
+conf_interval
+```
+
+<span style="font-size: 20px">W przypadku porównywania 2 wymiarów dla funkcji Rastrigin'a sprawdza się hipoteza alternatywna 2.
+Dla algorytmu PRS średnia i mediana są porównywalne, a odchylenie standardowe jest niewielkie. Natomiast dla algorytmu genetycznego średnia jest około czterokrotnie większa od mediany, a odchylenie standardowe jest znaczące.</span>
+
+## 10 wymiarów
+```{r, out.width="50%", fig.show="hold"}
+  rastrigin <- makeRastriginFunction(10)
+  
+  r_prs <- replicate(n = cost, 
+                 PRS(getLowerBoxConstraints(rastrigin), 
+                     getUpperBoxConstraints(rastrigin), 
+                     rastrigin, 
+                     budget))
+  r_ga <- replicate(n = cost, GA(rastrigin, budget))
+  hist(r_prs, main="histogram PRS", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  hist(r_ga, main="histogram GA", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  vioplot(r_prs, main="wykres skrzypcowy PRS", ylab = "wartości", col = "#BADDFF")
+  vioplot(r_ga, main="wykres skrzypcowy GA", ylab = "wartości", col = "#BADDFF")
+```
+```{r, echo=FALSE}
+  Prs <- c(mean(r_prs), median(r_prs), sd(r_prs), var(r_prs))
+  Ga <- c(mean(r_ga), median(r_ga), sd(r_ga), var(r_ga))
+  table <- data.frame(Algorytm, Prs, Ga)
+  as.data.frame(t(table)) %>% kable(align="lcccc", col.names = NULL) %>% kable_styling()
+```
+
+## Podsumowanie
+<span style="font-size: 20px">Obliczamy przedziały ufności: </span>
+
+##### **PRS**
+
+```{r}
+conf_interval <- CONF_INTRV(a_prs, alfa)
+conf_interval
+```
+
+##### **GA**
+
+```{r}
+conf_interval <- CONF_INTRV(a_ga, alfa)
+conf_interval
+```
+
+<span style="font-size: 20px">W przypadku porównywania 10 wymiarów dla funkcji Rastrigin'a sprawdza się hipoteza alternatywna 2.
+Dla algorytmu PRS średnia jest bardzo zbliżona do mediany, a odchylenie standardowe jest niewielkie. Dla algorytmu genetycznego średnia jest porównywalna do mediany, a odchylenie standardowe jest znaczące.</span>
+
+## 20 wymiarów
+```{r, out.width="50%", fig.show="hold"}
+  rastrigin <- makeRastriginFunction(20)
+  
+  r_prs <- replicate(n = cost, 
+                 PRS(getLowerBoxConstraints(rastrigin), 
+                     getUpperBoxConstraints(rastrigin), 
+                     rastrigin, 
+                     budget))
+  r_ga <- replicate(n = cost, GA(rastrigin, budget))
+  hist(r_prs, main="histogram PRS", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  hist(r_ga, main="histogram GA", xlab = "wartości", ylab = "ilość punktów", col = "#BADDFF")
+  vioplot(r_prs, main="wykres skrzypcowy PRS", ylab = "wartości", col = "#BADDFF")
+  vioplot(r_ga, main="wykres skrzypcowy GA", ylab = "wartości", col = "#BADDFF")
+```
+```{r, echo=FALSE}
+  Prs <- c(mean(r_prs), median(r_prs), sd(r_prs), var(r_prs))
+  Ga <- c(mean(r_ga), median(r_ga), sd(r_ga), var(r_ga))
+  table <- data.frame(Algorytm, Prs, Ga)
+  as.data.frame(t(table)) %>% kable(align="lcccc", col.names = NULL) %>% kable_styling()
+```
+
+## Podsumowanie
+<span style="font-size: 20px">Obliczamy przedziały ufności: </span>
+
+##### **PRS**
+
+```{r}
+conf_interval <- CONF_INTRV(a_prs, alfa)
+conf_interval
+```
+
+##### **GA**
+
+```{r}
+conf_interval <- CONF_INTRV(a_ga, alfa)
+conf_interval
+```
+
+<span style="font-size: 20px">W przypadku porównywania 20 wymiarów dla funkcji Rastrigin'a sprawdza się hipoteza alternatywna 2.
+Dla algorytmu PRS średnia jest bardzo bliska medianie, a odchylenie standardowe jest bardzo niewielkie. Natomiast dla algorytmu genetycznego średnia praktycznie pokrywa się z miedaną, a odchylenie standardowe jest znaczące.</span>
+
+## **Podsumowania całości i wnioski**
+<span style="font-size: 20px">Jak widać algorytm genetyczny daje zdecydowanie lepsze wyniki niż algorytm PRS. Możemy jednak zaobserwować, iż wraz ze wzrostem liczby wymiarów algorytm PRS dogania algorytm genetyczny oraz jego odchylenie standardowe jest procentowo niższe niż w przypadku GA. Ze względu na nierównomierne rozłożenie wyników algorytmu genetycznego, jego odchylenie standardowe oraz wariancja są stosunkowo wysokie. Dla każdego z testowanych wymiarów średnia oraz mediana algorytmu PRS były do siebie bardzo zbliżone, a w przypadku GA miało to miejsce dopiero dla większej ilości wymiarów (tj. 10 i więcej).</span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
