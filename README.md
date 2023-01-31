@@ -8,7 +8,7 @@ This repository is a project made as an assignment in the Probability and Statis
 
 ## Used technologies:
 - *R* language and its packages
-- *R markdown*
+- *R*  markdown
 - *LaTeX*
 
 ## Language
